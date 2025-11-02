@@ -47,6 +47,7 @@ export default function AllExpenses() {
   const [isDateModalOpen, setIsDateModalOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const itemsPerPage = 20;
 
   useEffect(() => {
@@ -205,8 +206,43 @@ export default function AllExpenses() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg"
+      >
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          {isMobileMenuOpen ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          ) : (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          )}
+        </svg>
+      </button>
+
       {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full w-60 bg-white shadow-lg flex flex-col">
+      <div
+        className={`fixed left-0 top-0 h-full w-60 bg-white shadow-lg flex flex-col transform transition-transform duration-300 z-40 ${
+          isMobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
         <div className="p-6">
           <div className="flex items-center space-x-3 mb-8">
             <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
@@ -290,15 +326,15 @@ export default function AllExpenses() {
       </div>
 
       {/* Main Content */}
-      <div className="ml-60 p-8">
+      <div className="lg:ml-60 p-4 md:p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2 mt-12 lg:mt-0">
             All Expenses
           </h1>
           <p className="text-gray-600">
             Viewing {filteredExpenses.length} of {totalExpenses} expenses
           </p>
-          <div className="flex gap-2 mt-4">
+          <div className="flex flex-wrap gap-2 mt-4">
             {(
               [
                 "Today",
@@ -334,8 +370,8 @@ export default function AllExpenses() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Search
@@ -385,7 +421,8 @@ export default function AllExpenses() {
 
         {/* Expenses Table */}
         <div className="bg-white rounded-lg shadow">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -509,9 +546,61 @@ export default function AllExpenses() {
             </table>
           </div>
 
+          {/* Mobile Card View */}
+          <div className="lg:hidden divide-y divide-gray-200">
+            {loading ? (
+              <div className="px-4 py-8 text-center text-gray-500">
+                Loading expenses...
+              </div>
+            ) : filteredExpenses.length === 0 ? (
+              <div className="px-4 py-8 text-center text-gray-500">
+                No expenses found.
+              </div>
+            ) : (
+              filteredExpenses.map((expense) => (
+                <div key={expense._id} className="p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">
+                        {expense.merchant}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {new Date(expense.date).toLocaleDateString()}
+                      </div>
+                      {expense.description && (
+                        <div className="text-sm text-gray-600 mt-1">
+                          {expense.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-gray-900">
+                        ${expense.amount.toFixed(2)}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteExpense(expense._id)}
+                        className="text-xs text-red-600 hover:text-red-800 mt-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-xs flex-wrap">
+                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full">
+                      {expense.category}
+                    </span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                      {expense.paymentMethod}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <div className="px-4 md:px-6 py-4 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-sm text-gray-700">
                 Page {currentPage} of {totalPages}
               </div>
@@ -546,8 +635,8 @@ export default function AllExpenses() {
 
       {/* Date Selection Modal */}
       {isDateModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
                 Select Month and Year
@@ -612,10 +701,10 @@ export default function AllExpenses() {
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   onClick={() => setIsDateModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                  className="w-full sm:flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -625,7 +714,7 @@ export default function AllExpenses() {
                     setCurrentPage(1);
                     setIsDateModalOpen(false);
                   }}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium transition-colors"
+                  className="w-full sm:flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium transition-colors"
                 >
                   Apply Filter
                 </button>
