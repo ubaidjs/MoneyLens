@@ -12,6 +12,14 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  AreaChart,
+  Area,
+  RadialBarChart,
+  RadialBar,
 } from "recharts";
 import AddExpenseModal from "~/components/AddExpenseModal";
 
@@ -149,6 +157,18 @@ export default function Dashboard() {
   const budget = 4000;
   const budgetRemaining = budget - (stats?.totalSpending || 0);
 
+  // Color palette for charts
+  const COLORS = [
+    "#4f46e5",
+    "#06b6d4",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#ec4899",
+    "#14b8a6",
+  ];
+
   // Calculate trend from monthly data
   const calculateTrend = () => {
     if (!stats?.monthlyTrend || stats.monthlyTrend.length < 2) return 0;
@@ -177,6 +197,58 @@ export default function Dashboard() {
         amount: item.total,
       }))
       .sort((a, b) => b.amount - a.amount) || [];
+
+  // Pie chart data for categories
+  const categoryPieData =
+    stats?.categoryBreakdown.map((item) => ({
+      name: item._id,
+      value: item.total,
+    })) || [];
+
+  // Payment method breakdown
+  const paymentMethodData = expenses.reduce((acc: any[], expense) => {
+    const existing = acc.find((item) => item.name === expense.paymentMethod);
+    if (existing) {
+      existing.value += expense.amount;
+      existing.count += 1;
+    } else {
+      acc.push({
+        name: expense.paymentMethod,
+        value: expense.amount,
+        count: 1,
+        fill: COLORS[acc.length % COLORS.length],
+      });
+    }
+    return acc;
+  }, []);
+
+  // Cumulative spending data (area chart)
+  const cumulativeData = (() => {
+    const sortedExpenses = [...expenses].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    let cumulative = 0;
+    return sortedExpenses.map((expense) => {
+      cumulative += expense.amount;
+      return {
+        date: new Date(expense.date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        amount: cumulative,
+      };
+    });
+  })();
+
+  // Transaction count by category
+  const transactionCountData =
+    stats?.categoryBreakdown
+      .map((item) => ({
+        name: item._id,
+        count: item.count,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6) || [];
 
   const filteredExpenses = expenses.filter(
     (expense) =>
@@ -336,7 +408,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <p className="text-sm font-medium text-gray-500 mb-1">
               Total Spending
@@ -368,15 +440,27 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-6">
             <p className="text-sm font-medium text-gray-500 mb-1">
-              Budget Remaining
+              Total Transactions
             </p>
             <p className="text-3xl font-bold text-gray-900 mb-1">
-              ${budgetRemaining.toFixed(2)}
+              {statsLoading ? "..." : expenses.length}
             </p>
-            <p className="text-sm text-gray-500">of ${budget.toFixed(2)}</p>
-          </div> */}
+            <p className="text-sm text-gray-500">{dateFilter}</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-sm font-medium text-gray-500 mb-1">
+              Top Category
+            </p>
+            <p className="text-3xl font-bold text-gray-900 mb-1">
+              ${categoryData[0]?.amount.toFixed(2) || "0.00"}
+            </p>
+            <p className="text-sm text-gray-500">
+              {categoryData[0]?.name || "N/A"}
+            </p>
+          </div>
         </div>
 
         {/* Charts */}
@@ -385,7 +469,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                Monthly Spending Trend
+                Weekly Spending Trend
               </h3>
               <p className="text-2xl font-bold text-gray-900 mt-2">
                 ${(stats?.totalSpending || 0).toFixed(2)}
@@ -402,24 +486,71 @@ export default function Dashboard() {
                 </span>
               </p>
             </div>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={250}>
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
                 <YAxis stroke="#9ca3af" fontSize={12} />
-                <Tooltip />
+                <Tooltip
+                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                  }}
+                />
                 <Line
                   type="monotone"
                   dataKey="amount"
                   stroke="#4f46e5"
                   strokeWidth={3}
-                  dot={false}
+                  dot={{ fill: "#4f46e5", r: 4 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Top Categories Chart */}
+          {/* Category Distribution Pie Chart */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Category Distribution
+              </h3>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                {categoryPieData.length} Categories
+              </p>
+              <p className="text-sm text-gray-500">
+                Spending breakdown by category
+              </p>
+            </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={categoryPieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={(entry: any) =>
+                    `${entry.name} ${(entry.percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {categoryPieData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top Categories Bar Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -432,13 +563,158 @@ export default function Dashboard() {
                 On {categoryData[0]?.name || "N/A"}
               </p>
             </div>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={categoryData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
                 <YAxis stroke="#9ca3af" fontSize={12} />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#4f46e5" radius={[8, 8, 0, 0]} />
+                <Tooltip
+                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                  }}
+                />
+                <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                  {categoryData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Cumulative Spending Area Chart */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Cumulative Spending
+              </h3>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                $
+                {cumulativeData[cumulativeData.length - 1]?.amount.toFixed(2) ||
+                  "0.00"}
+              </p>
+              <p className="text-sm text-gray-500">
+                Total accumulated over time
+              </p>
+            </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={cumulativeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} />
+                <Tooltip
+                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="amount"
+                  stroke="#10b981"
+                  fill="#10b981"
+                  fillOpacity={0.3}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Additional Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-8">
+          {/* Payment Method Distribution */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Payment Methods
+              </h3>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                {paymentMethodData.length} Methods
+              </p>
+              <p className="text-sm text-gray-500">
+                Distribution by payment type
+              </p>
+            </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <RadialBarChart
+                cx="50%"
+                cy="50%"
+                innerRadius="20%"
+                outerRadius="90%"
+                data={paymentMethodData}
+                startAngle={90}
+                endAngle={-270}
+              >
+                <RadialBar
+                  background
+                  dataKey="value"
+                  label={{
+                    position: "insideStart",
+                    fill: "#fff",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend
+                  iconSize={10}
+                  layout="vertical"
+                  verticalAlign="middle"
+                  align="right"
+                  formatter={(value, entry: any) =>
+                    `${value}: $${entry.payload.value.toFixed(2)}`
+                  }
+                />
+                <Tooltip
+                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                />
+              </RadialBarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Transaction Count by Category */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Transaction Frequency
+              </h3>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                {transactionCountData[0]?.count || 0} Transactions
+              </p>
+              <p className="text-sm text-gray-500">
+                Most frequent: {transactionCountData[0]?.name || "N/A"}
+              </p>
+            </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={transactionCountData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" stroke="#9ca3af" fontSize={12} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  stroke="#9ca3af"
+                  fontSize={12}
+                  width={80}
+                />
+                <Tooltip
+                  formatter={(value: number) => `${value} transactions`}
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                  }}
+                />
+                <Bar dataKey="count" radius={[0, 8, 8, 0]}>
+                  {transactionCountData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
