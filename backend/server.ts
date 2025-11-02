@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import homeRouter from "./routes/home";
 import userRouter from "./routes/user";
 import authRouter from "./routes/auth";
+import expenseRouter from "./routes/expense";
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +34,7 @@ mongoose
 app.use("/", homeRouter);
 app.use("/users", userRouter);
 app.use("/auth", authRouter);
+app.use("/expenses", expenseRouter);
 
 // Start server
 app.listen(PORT, () => {
