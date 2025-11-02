@@ -330,7 +330,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          {/* <div className="bg-white rounded-lg shadow p-6">
             <p className="text-sm font-medium text-gray-500 mb-1">
               Budget Remaining
             </p>
@@ -338,7 +338,7 @@ export default function Dashboard() {
               ${budgetRemaining.toFixed(2)}
             </p>
             <p className="text-sm text-gray-500">of ${budget.toFixed(2)}</p>
-          </div>
+          </div> */}
         </div>
 
         {/* Charts */}

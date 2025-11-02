@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 import { useAuth } from "~/context/AuthContext";
 import { useEffect, useState } from "react";
 import type { Route } from "./+types/all-expenses";
+import AddExpenseModal from "~/components/AddExpenseModal";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -20,8 +21,15 @@ interface Expense {
   description?: string;
 }
 
-type SortField = "date" | "amount" | "merchant" | "category";
+type SortField = "date" | "amount" | "merchant" | "category" | "paymentMethod";
 type SortOrder = "asc" | "desc";
+type DateFilter =
+  | "Today"
+  | "This Week"
+  | "This Month"
+  | "This Year"
+  | "Custom"
+  | "All Time";
 
 export default function AllExpenses() {
   const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -34,6 +42,11 @@ export default function AllExpenses() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalExpenses, setTotalExpenses] = useState(0);
+  const [dateFilter, setDateFilter] = useState<DateFilter>("All Time");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const itemsPerPage = 20;
 
   useEffect(() => {
@@ -46,37 +59,75 @@ export default function AllExpenses() {
     if (isAuthenticated) {
       fetchExpenses();
     }
-  }, [isAuthenticated, currentPage, sortField, sortOrder]);
+  }, [isAuthenticated, currentPage, sortField, sortOrder, dateFilter]);
+
+  const getDateRange = () => {
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (dateFilter) {
+      case "Today":
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case "This Week":
+        const dayOfWeek = now.getDay();
+        startDate = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case "This Month":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case "This Year":
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case "Custom":
+        startDate = new Date(selectedYear, selectedMonth - 1, 1);
+        const endDate = new Date(selectedYear, selectedMonth, 0); // Last day of selected month
+        return {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        };
+      case "All Time":
+        return {};
+    }
+
+    return { startDate: startDate.toISOString(), endDate: now.toISOString() };
+  };
 
   const fetchExpenses = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
       const skip = (currentPage - 1) * itemsPerPage;
-      const response = await fetch(
-        `http://localhost:3000/expenses?limit=${itemsPerPage}&skip=${skip}&sort=${sortField}&order=${sortOrder}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const { startDate, endDate } = getDateRange();
+      const params = new URLSearchParams({
+        limit: itemsPerPage.toString(),
+        skip: skip.toString(),
+        sort: sortField,
+        order: sortOrder,
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate }),
+      });
+      const response = await fetch(`http://localhost:3000/expenses?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (response.ok) {
         const data = await response.json();
         setExpenses(data);
         // Fetch total count
+        const countParams = new URLSearchParams({
+          ...(startDate && { startDate }),
+          ...(endDate && { endDate }),
+        });
         const countResponse = await fetch(
-          `http://localhost:3000/expenses/stats`,
+          `http://localhost:3000/expenses/stats?${countParams}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
         if (countResponse.ok) {
           const statsData = await countResponse.json();
-          const totalCount =
-            statsData.categoryBreakdown?.reduce(
-              (sum: number, cat: any) => sum + cat.count,
-              0
-            ) || 0;
-          setTotalExpenses(totalCount);
+          setTotalExpenses(statsData.expenseCount || 0);
         }
       }
     } catch (error) {
@@ -99,6 +150,10 @@ export default function AllExpenses() {
       setSortOrder("desc");
     }
     setCurrentPage(1);
+  };
+
+  const handleExpenseAdded = () => {
+    fetchExpenses();
   };
 
   const handleDeleteExpense = async (expenseId: string) => {
@@ -206,6 +261,13 @@ export default function AllExpenses() {
 
         <div className="mt-auto p-6 space-y-3">
           <button
+            onClick={() => setIsModalOpen(true)}
+            className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+          >
+            Add Expense
+          </button>
+
+          <button
             onClick={handleLogout}
             className="w-full flex items-center space-x-3 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg"
           >
@@ -236,6 +298,39 @@ export default function AllExpenses() {
           <p className="text-gray-600">
             Viewing {filteredExpenses.length} of {totalExpenses} expenses
           </p>
+          <div className="flex gap-2 mt-4">
+            {(
+              [
+                "Today",
+                "This Week",
+                "This Month",
+                "This Year",
+                "Custom",
+                "All Time",
+              ] as DateFilter[]
+            ).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => {
+                  if (filter === "Custom") {
+                    setIsDateModalOpen(true);
+                  } else {
+                    setDateFilter(filter);
+                    setCurrentPage(1);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  dateFilter === filter
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {filter === "Custom" && dateFilter === "Custom"
+                  ? `${new Date(selectedYear, selectedMonth - 1).toLocaleString("default", { month: "long" })} ${selectedYear}`
+                  : filter}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Filters */}
@@ -341,8 +436,16 @@ export default function AllExpenses() {
                       )}
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment Method
+                  <th
+                    onClick={() => handleSort("paymentMethod")}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Payment Method</span>
+                      {sortField === "paymentMethod" && (
+                        <span>{sortOrder === "asc" ? "↑" : "↓"}</span>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -434,6 +537,103 @@ export default function AllExpenses() {
           )}
         </div>
       </div>
+
+      <AddExpenseModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleExpenseAdded}
+      />
+
+      {/* Date Selection Modal */}
+      {isDateModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Select Month and Year
+              </h2>
+              <button
+                onClick={() => setIsDateModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Month
+                </label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                    <option key={month} value={month}>
+                      {new Date(0, month - 1).toLocaleString("default", {
+                        month: "long",
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Year
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  {Array.from(
+                    { length: 6 },
+                    (_, i) => new Date().getFullYear() - i
+                  ).map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setIsDateModalOpen(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setDateFilter("Custom");
+                    setCurrentPage(1);
+                    setIsDateModalOpen(false);
+                  }}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium transition-colors"
+                >
+                  Apply Filter
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

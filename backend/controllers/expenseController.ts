@@ -35,7 +35,15 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
 export const getExpenses = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    const { startDate, endDate, category, limit = "100" } = req.query;
+    const {
+      startDate,
+      endDate,
+      category,
+      limit = "100",
+      skip = "0",
+      sort = "date",
+      order = "desc",
+    } = req.query;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -55,8 +63,22 @@ export const getExpenses = async (req: AuthRequest, res: Response) => {
       query.category = category;
     }
 
+    const allowedSortFields = [
+      "date",
+      "amount",
+      "merchant",
+      "category",
+      "paymentMethod",
+    ];
+    const sortField = allowedSortFields.includes(sort as string)
+      ? (sort as string)
+      : "date";
+    const sortOrder = order === "asc" ? 1 : -1;
+    const sortObj: any = {};
+    sortObj[sortField] = sortOrder;
     const expenses = await Expense.find(query)
-      .sort({ date: -1 })
+      .sort(sortObj)
+      .skip(parseInt(skip as string))
       .limit(parseInt(limit as string));
 
     res.json(expenses);
