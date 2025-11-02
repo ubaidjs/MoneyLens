@@ -1,4 +1,5 @@
 import { Response } from "express";
+import mongoose from "mongoose";
 import Expense from "../models/expense";
 import { AuthRequest } from "../middleware/auth";
 
@@ -74,25 +75,28 @@ export const getExpenseStats = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    let dateFilter: any = {};
-    if (startDate || endDate) {
-      dateFilter.date = {};
-      if (startDate) dateFilter.date.$gte = new Date(startDate as string);
-      if (endDate) dateFilter.date.$lte = new Date(endDate as string);
-    }
+    // Build match query with proper ObjectId conversion
+    const matchQuery: any = {
+      userId: new mongoose.Types.ObjectId(userId),
+    };
 
-    const query = { userId, ...dateFilter };
+    // Date range filter
+    if (startDate || endDate) {
+      matchQuery.date = {};
+      if (startDate) matchQuery.date.$gte = new Date(startDate as string);
+      if (endDate) matchQuery.date.$lte = new Date(endDate as string);
+    }
 
     // Total spending
     const totalResult = await Expense.aggregate([
-      { $match: query },
+      { $match: matchQuery },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
     const totalSpending = totalResult.length > 0 ? totalResult[0].total : 0;
 
     // Category breakdown
     const categoryBreakdown = await Expense.aggregate([
-      { $match: query },
+      { $match: matchQuery },
       {
         $group: {
           _id: "$category",
@@ -105,7 +109,7 @@ export const getExpenseStats = async (req: AuthRequest, res: Response) => {
 
     // Monthly trend
     const monthlyTrend = await Expense.aggregate([
-      { $match: query },
+      { $match: matchQuery },
       {
         $group: {
           _id: {
@@ -121,7 +125,10 @@ export const getExpenseStats = async (req: AuthRequest, res: Response) => {
     ]);
 
     // Calculate average daily spend
-    const expenses = await Expense.find(query);
+    const expenses = await Expense.find({
+      userId,
+      ...(matchQuery.date ? { date: matchQuery.date } : {}),
+    });
     let avgDailySpend = 0;
     if (expenses.length > 0) {
       const dates = expenses.map((e) => e.date.getTime());

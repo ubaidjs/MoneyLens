@@ -121,6 +121,7 @@ export default function Dashboard() {
       );
       if (response.ok) {
         const data = await response.json();
+        console.log("Fetched stats:", data);
         setStats(data);
       }
     } catch (error) {
@@ -146,10 +147,19 @@ export default function Dashboard() {
 
   const budget = 4000;
   const budgetRemaining = budget - (stats?.totalSpending || 0);
-  const previousTotal = stats?.totalSpending || 2337.33;
-  const totalChange = stats?.totalSpending
-    ? ((stats.totalSpending - previousTotal) / previousTotal) * 100
-    : 0;
+
+  // Calculate trend from monthly data
+  const calculateTrend = () => {
+    if (!stats?.monthlyTrend || stats.monthlyTrend.length < 2) return 0;
+    const current =
+      stats.monthlyTrend[stats.monthlyTrend.length - 1]?.total || 0;
+    const previous =
+      stats.monthlyTrend[stats.monthlyTrend.length - 2]?.total || 0;
+    if (previous === 0) return 0;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const totalChange = calculateTrend();
 
   // Prepare chart data
   const trendData =
@@ -207,7 +217,10 @@ export default function Dashboard() {
               </svg>
               <span className="font-medium">Dashboard</span>
             </button>
-            <button className="w-full flex items-center space-x-3 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">
+            <button
+              onClick={() => navigate("/all-expenses")}
+              className="w-full flex items-center space-x-3 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg"
+            >
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -218,48 +231,10 @@ export default function Dashboard() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
                 />
               </svg>
-              <span className="font-medium">Reports</span>
-            </button>
-            <button className="w-full flex items-center space-x-3 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                />
-              </svg>
-              <span className="font-medium">Accounts</span>
-            </button>
-            <button className="w-full flex items-center space-x-3 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              <span className="font-medium">Settings</span>
+              <span className="font-medium">All Expenses</span>
             </button>
           </nav>
         </div>
@@ -270,23 +245,6 @@ export default function Dashboard() {
             className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
           >
             Add Expense
-          </button>
-
-          <button className="w-full flex items-center space-x-3 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="font-medium">Help Center</span>
           </button>
 
           <button
@@ -348,7 +306,12 @@ export default function Dashboard() {
             <p className="text-3xl font-bold text-gray-900 mb-1">
               ${statsLoading ? "..." : (stats?.totalSpending || 0).toFixed(2)}
             </p>
-            <p className="text-sm text-green-600">+{totalChange.toFixed(1)}%</p>
+            <p
+              className={`text-sm ${totalChange >= 0 ? "text-red-600" : "text-green-600"}`}
+            >
+              {totalChange >= 0 ? "+" : ""}
+              {totalChange.toFixed(1)}%
+            </p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
@@ -358,7 +321,13 @@ export default function Dashboard() {
             <p className="text-3xl font-bold text-gray-900 mb-1">
               ${statsLoading ? "..." : (stats?.avgDailySpend || 0).toFixed(2)}
             </p>
-            <p className="text-sm text-red-600">-1.5%</p>
+            <p
+              className={`text-sm ${stats?.avgDailySpend && stats.avgDailySpend > 100 ? "text-red-600" : "text-green-600"}`}
+            >
+              {stats?.avgDailySpend && stats.avgDailySpend > 100
+                ? "↑ High"
+                : "↓ Good"}
+            </p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
@@ -384,7 +353,15 @@ export default function Dashboard() {
                 ${(stats?.totalSpending || 0).toFixed(2)}
               </p>
               <p className="text-sm text-gray-500">
-                This Month <span className="text-green-600">+5.2%</span>
+                {dateFilter}{" "}
+                <span
+                  className={
+                    totalChange >= 0 ? "text-red-600" : "text-green-600"
+                  }
+                >
+                  {totalChange >= 0 ? "+" : ""}
+                  {totalChange.toFixed(1)}%
+                </span>
               </p>
             </div>
             <ResponsiveContainer width="100%" height={200}>
